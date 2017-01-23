@@ -24,12 +24,17 @@
         public CustomAmfObject() { }
     }
     
-    // Сериализуем модель данных.
     using (MemoryStream memoryStream = new MemoryStream())
     using (AMFWriter amfWriter = new AMFWriter(memoryStream))
     using (WebClient client = new WebClient())
     {
-        amfWriter.WriteBytes(new CustomAmfObject().SerializeToAmf());
+        CustomAmfObject customObject = new CustomAmfObject();
+        
+        byte[] serializedBuffer = customObject.SerializeToAmf();    // Сериализуем модель данных.
+        
+        amfWriter.WriteBytes(serializedBuffer);
         client.Headers[HttpRequestHeader.ContentType] = "application/x-amf";
-        byte[] buffer = client.UploadData(Host, "POST", memoryStream.ToArray());
+        client.UploadData(Host, "POST", memoryStream.ToArray());
+        
+        CustomAmfObject deserializedObject = serializedBuffer.DeserializeFromAmf<CustomAmfObject>();    // Десериализуем буфер в объект.
     }
