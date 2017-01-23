@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.26020.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluorineFX.Serialization", "FluorineFX.Serialization\FluorineFX.Serialization.csproj", "{66383510-E597-4F72-B6FA-F45A266AA073}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApplication1", "C:\Users\Exomode\Desktop\ConsoleApplication1\ConsoleApplication1.csproj", "{70DE1A2A-8C03-4DF4-A91A-2A99C96A24DE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{66383510-E597-4F72-B6FA-F45A266AA073}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66383510-E597-4F72-B6FA-F45A266AA073}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66383510-E597-4F72-B6FA-F45A266AA073}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66383510-E597-4F72-B6FA-F45A266AA073}.Release|Any CPU.Build.0 = Release|Any CPU
+		{70DE1A2A-8C03-4DF4-A91A-2A99C96A24DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{70DE1A2A-8C03-4DF4-A91A-2A99C96A24DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{70DE1A2A-8C03-4DF4-A91A-2A99C96A24DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{70DE1A2A-8C03-4DF4-A91A-2A99C96A24DE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
