@@ -1,4 +1,4 @@
-﻿using FluorineFx.IO;
+using FluorineFx.IO;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -47,7 +47,7 @@ namespace FluorineFX.Serialization
         /// Находит и возвращает атрибут.
         /// </summary>
         /// <typeparam name="T">Тип искомого атрибута.</typeparam>
-        /// <param name="sourceType">Исходный тип для поиска.</param>
+        /// <param name="sourceMember">Исходный тип для поиска.</param>
         /// <returns></returns>
         private static T GetAttribute<T>(this MemberInfo sourceMember) where T : Attribute
         {
@@ -58,6 +58,12 @@ namespace FluorineFX.Serialization
             return attributes[0] as T;
         }
 
+        /// <summary>
+        /// Определяет, задан ли указанный атрибут типу.
+        /// </summary>
+        /// <typeparam name="T">Тип атрибута.</typeparam>
+        /// <param name="sourceType">Исходный тип объекта.</param>
+        /// <returns></returns>
         private static bool IsDefinedAttribute<T>(this Type sourceType)
         {
             object[] attributes = sourceType.GetCustomAttributes(typeof(T), true);  // Получаем текущий атрибут.
@@ -103,19 +109,16 @@ namespace FluorineFX.Serialization
                     string propertyName = attribute.Name ?? propertyInfo.Name; // Получаем имя свойства.
                     object propertyValue = propertyInfo.GetValue(sourceObject, null); // Получаем значение свойства.
 
-                    AmfObjectAttribute propertyAttribute = propertyInfo.PropertyType.GetAttribute<AmfObjectAttribute>();  // Получаем атрибут у свойства.
-
                     Type propertyType = propertyInfo.PropertyType;  // Получаем метаданные типа свойства.
 
                     // Если у типа задан атрибут...
-                    if (propertyAttribute != null)
+                    if (propertyInfo.PropertyType.IsDefinedAttribute<AmfObjectAttribute>())
                     {
                         propertyValue = GenerateType(propertyValue); // Генерируем объект типа, заданного в атрибуте.
                         propertyType = propertyValue.GetType();   // Обновляем тип свойства.
                     }
 
                     FieldBuilder fieldBuilder = typeBuilder.DefineField($"m_{propertyName}", propertyType, FieldAttributes.Private);   // Определяем новое приватное поле.
-
                     PropertyBuilder propertyBuilder = typeBuilder.DefineProperty(propertyName, PropertyAttributes.HasDefault, propertyType, null); // Определяем новое свойство.
                     MethodAttributes getSetAttr = MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig;  // Устанавливаем атрибуты аксессору и мутатору свойства.
 
@@ -148,17 +151,14 @@ namespace FluorineFX.Serialization
                     object fieldValue = fieldInfo.GetValue(sourceObject); // Получаем значение поля.
                     Type fieldType = fieldInfo.FieldType;  // Получаем метаданные типа поля.
 
-                    AmfObjectAttribute fieldAttribute = fieldInfo.FieldType.GetAttribute<AmfObjectAttribute>();  // Получаем атрибут у поля.
-
                     // Если у типа задан атрибут...
-                    if (fieldAttribute != null)
+                    if (fieldInfo.FieldType.IsDefinedAttribute<AmfObjectAttribute>())
                     {
                         fieldValue = GenerateType(fieldValue); // Генерируем объект типа, заданного в атрибуте.
                         fieldType = fieldValue.GetType();   // Обновляем тип поля.
                     }
 
-                    FieldBuilder fieldBuilder = typeBuilder.DefineField(fieldName, fieldType, FieldAttributes.Public);   // Определяем новое поле.
-
+                    typeBuilder.DefineField(fieldName, fieldType, FieldAttributes.Public);   // Определяем новое поле.
                     fields.Add(fieldName, fieldValue);  // Сохраняем значения в словарь для дальнейшей передачи свойствам значений.
                 }
             }
@@ -212,7 +212,7 @@ namespace FluorineFX.Serialization
                 }
             }
 
-            object targetObject = Activator.CreateInstance(definedType ?? typeBuilder.CreateType() );  // Создаём инстанс нашего динамического типа.
+            object targetObject = Activator.CreateInstance(definedType ?? typeBuilder.CreateType());  // Создаём инстанс нашего динамического типа.
 
             // Раставляем значения всем свойствам объекта.
             foreach (KeyValuePair<string, object> property in properties) targetObject.GetType().GetProperty(property.Key).SetValue(targetObject, property.Value, null);
@@ -226,12 +226,54 @@ namespace FluorineFX.Serialization
         /// <summary>
         /// Генерирует массив объектов с метаданными типа в соответствии с заданными атрибутами <see cref="AmfObjectAttribute"/>, с полями типа, заданного в атрибутах <see cref="AmfMemberAttribute"/>.
         /// </summary>
-        /// <param name="sourceObject">Массив исходных объектов.</param>
+        /// <param name="sourceObjects">Массив исходных объектов.</param>
         /// <returns></returns>
         private static object[] GenerateType(object[] sourceObjects)
         {
             for (int i = 0; i < sourceObjects.Length; i++) sourceObjects[i] = GenerateType(sourceObjects[i]);   // Генерируем типы для каждого элемента массива.
             return sourceObjects;
+        }
+
+        /// <summary>
+        /// Генерирует объект на основе коллекции пар "ключ-значение", где, ключ - имя поля объекта.
+        /// </summary>
+        /// <param name="fields">Коллекция полей будущего объекта вида "ключ-значение"</param>
+        /// <returns></returns>
+        private static object GenerateType(IEnumerable<KeyValuePair<string, object>> fields)
+        {
+            AssemblyName assemblyName = new AssemblyName("AmfDynamicAssemblyForDictionary");    // Создаём новую среду выполнения кода.
+            AssemblyBuilder assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave);    // Определяем среду выполнения.
+            ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");   // Определяем новый модуль для среды выполнения.
+            TypeBuilder typeBuilder = moduleBuilder.DefineType(typeof(Array).Name, TypeAttributes.Public);  // Опледеляем тип с нашим именем.
+
+            ConstructorBuilder ctor = typeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);  // Определяем конструктор.
+            ILGenerator ctorIL = ctor.GetILGenerator();   // Получаем ссылку на генератор MSIL-инструкций для конструктора.
+            ctorIL.Emit(OpCodes.Ldarg_0);  // Помещаем в стек вычислений нулевой аргумент. 
+            ctorIL.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)); // Вызываем базовый конструктор для инициализации значения по умолчанию у нулевого аргумента.
+            ctorIL.Emit(OpCodes.Ret);  // Помещаем в стек вычислений инструкцию о возврате из метода.
+
+            // Перебираем все поля нашего типа.
+            foreach (KeyValuePair<string, object> pair in fields)
+            {
+                object fieldValue = pair.Value; // Получаем значение поля.
+                Type fieldType = fieldValue.GetType();  // Получаем метаданные типа поля.
+
+                // Если у типа задан атрибут...
+                if (fieldType.IsDefinedAttribute<AmfObjectAttribute>())
+                {
+                    fieldValue = GenerateType(fieldValue); // Генерируем объект типа, заданного в атрибуте.
+                    fieldType = fieldValue.GetType();   // Обновляем тип поля.
+                }
+
+                typeBuilder.DefineField(pair.Key, fieldType, FieldAttributes.Public);   // Определяем новое поле.
+            }
+
+            object targetObject = Activator.CreateInstance(typeBuilder.CreateType());  // Создаём инстанс нашего динамического типа.
+
+            // Раставляем значения всем свойствам объекта.
+            foreach (KeyValuePair<string, object> pair in fields) targetObject.GetType().GetProperty(pair.Key).SetValue(targetObject, pair.Value, null);
+
+            return targetObject;
         }
 
         /// <summary>
