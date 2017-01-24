@@ -27,7 +27,7 @@ namespace FluorineFX.Serialization
             AssemblyBuilder assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave);    // Определяем среду выполнения.
             moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");   // Определяем новый модуль для среды выполнения.
         }
-
+        
         /// <summary>
         /// Находит и возвращает атрибут.
         /// </summary>
@@ -71,14 +71,31 @@ namespace FluorineFX.Serialization
         }
 
         /// <summary>
+        /// Определяет, является ли тип словарём или наследником от словаря.
+        /// </summary>
+        /// <param name="sourceType">Проверяемый тип.</param>
+        /// <returns></returns>
+        private static bool IsDictionary(this Type sourceType)
+        {
+            Type type0 = typeof(IEnumerable<KeyValuePair<string, object>>);
+            Type type1 = typeof(IDictionary<string, object>);
+            Type type2 = typeof(Dictionary<string, object>);
+
+            return sourceType.FullName == type0.FullName || sourceType.IsSubclassOf(type0)
+                || sourceType.FullName == type1.FullName || sourceType.IsSubclassOf(type1)
+                || sourceType.FullName == type2.FullName || sourceType.IsSubclassOf(type2);
+        }
+
+        /// <summary>
         /// Генерирует объект с метаданными типа в соответствии с заданными атрибутами <see cref="AmfObjectAttribute"/>, с полями типа, заданного в атрибутах <see cref="AmfMemberAttribute"/>.
         /// </summary>
         /// <param name="sourceObject">Исходный экземпляр объекта.</param>
         /// <returns></returns>
-        private static object GenerateType(object sourceObject)
+        private static object GenerateType<T>(T sourceObject)
         {
             Type sourceType = sourceObject.GetType(); // Получаем метаданные типа исходного объекта.
 
+            if (sourceType.IsDictionary()) return GenerateType(sourceObject as IEnumerable<KeyValuePair<string, object>>);
             if (!sourceType.IsDefinedAttribute<AmfObjectAttribute>()) return sourceObject; // Если у типа объекта не задан атрибут - возвращаем как есть.
 
             string typeName = sourceType.GetAttribute<AmfObjectAttribute>().Name ?? sourceType.FullName;    // Определяем имя у типа.
@@ -108,13 +125,16 @@ namespace FluorineFX.Serialization
 
                     string propertyName = attribute.Name ?? propertyInfo.Name; // Получаем имя свойства.
                     object propertyValue = propertyInfo.GetValue(sourceObject, null); // Получаем значение свойства.
-
                     Type propertyType = propertyInfo.PropertyType;  // Получаем метаданные типа свойства.
 
-                    // Если у типа задан атрибут...
-                    if (propertyInfo.PropertyType.IsDefinedAttribute<AmfObjectAttribute>())
+                    // Если у типа задан атрибут или это словарь...
+                    if (propertyInfo.PropertyType.IsDefinedAttribute<AmfObjectAttribute>() || propertyType.IsDictionary())
                     {
-                        propertyValue = GenerateType(propertyValue); // Генерируем объект типа, заданного в атрибуте.
+                        // Генерируем объект типа, заданного в атрибуте.
+                        propertyValue = propertyType.IsDictionary()
+                            ? GenerateType(propertyValue as IEnumerable<KeyValuePair<string, object>>)
+                            : GenerateType(propertyValue);
+
                         propertyType = propertyValue.GetType();   // Обновляем тип свойства.
                     }
 
@@ -151,10 +171,14 @@ namespace FluorineFX.Serialization
                     object fieldValue = fieldInfo.GetValue(sourceObject); // Получаем значение поля.
                     Type fieldType = fieldInfo.FieldType;  // Получаем метаданные типа поля.
 
-                    // Если у типа задан атрибут...
-                    if (fieldInfo.FieldType.IsDefinedAttribute<AmfObjectAttribute>())
+                    // Если у типа задан атрибут или это словарь...
+                    if (fieldInfo.FieldType.IsDefinedAttribute<AmfObjectAttribute>() || fieldType.IsDictionary())
                     {
-                        fieldValue = GenerateType(fieldValue); // Генерируем объект типа, заданного в атрибуте.
+                        // Генерируем объект типа, заданного в атрибуте.
+                        fieldValue = fieldType.IsDictionary()
+                            ? GenerateType(fieldValue as IEnumerable<KeyValuePair<string, object>>)
+                            : GenerateType(fieldValue);
+
                         fieldType = fieldValue.GetType();   // Обновляем тип поля.
                     }
 
@@ -173,15 +197,18 @@ namespace FluorineFX.Serialization
 
                     string propertyName = attribute.Name ?? propertyInfo.Name; // Получаем имя свойства.
                     object propertyValue = propertyInfo.GetValue(sourceObject, null); // Получаем значение свойства.
+                    Type propertyType = propertyInfo.PropertyType;  // Получаем метаданные типа свойства.
 
                     AmfObjectAttribute propertyAttribute = propertyInfo.PropertyType.GetAttribute<AmfObjectAttribute>();  // Получаем атрибут у свойства.
 
-                    Type propertyType = propertyInfo.PropertyType;  // Получаем метаданные типа свойства.
-
-                    // Если у типа задан атрибут...
-                    if (propertyAttribute != null)
+                    // Если у типа задан атрибут или это словарь...
+                    if (propertyAttribute != null || propertyType.IsDictionary())
                     {
-                        propertyValue = GenerateType(propertyValue); // Генерируем объект типа, заданного в атрибуте.
+                        // Генерируем объект типа, заданного в атрибуте.
+                        propertyValue = propertyType.IsDictionary()
+                            ? GenerateType(propertyValue as IEnumerable<KeyValuePair<string, object>>)
+                            : GenerateType(propertyValue);
+
                         propertyType = propertyValue.GetType();   // Обновляем тип свойства.
                     }
 
@@ -201,10 +228,14 @@ namespace FluorineFX.Serialization
 
                     AmfObjectAttribute fieldAttribute = fieldInfo.FieldType.GetAttribute<AmfObjectAttribute>();  // Получаем атрибут у поля.
 
-                    // Если у типа задан атрибут...
-                    if (fieldAttribute != null)
+                    // Если у типа задан атрибут или это словарь...
+                    if (fieldAttribute != null || fieldType.IsDictionary())
                     {
-                        fieldValue = GenerateType(fieldValue); // Генерируем объект типа, заданного в атрибуте.
+                        // Генерируем объект типа, заданного в атрибуте.
+                        fieldValue = fieldType.IsDictionary()
+                            ? GenerateType(fieldValue as IEnumerable<KeyValuePair<string, object>>)
+                            : GenerateType(fieldValue);
+
                         fieldType = fieldValue.GetType();   // Обновляем тип поля.
                     }
 
@@ -244,7 +275,7 @@ namespace FluorineFX.Serialization
             AssemblyName assemblyName = new AssemblyName("AmfDynamicAssemblyForDictionary");    // Создаём новую среду выполнения кода.
             AssemblyBuilder assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave);    // Определяем среду выполнения.
             ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");   // Определяем новый модуль для среды выполнения.
-            TypeBuilder typeBuilder = moduleBuilder.DefineType(typeof(Array).Name, TypeAttributes.Public);  // Опледеляем тип с нашим именем.
+            TypeBuilder typeBuilder = moduleBuilder.DefineType(typeof(Array).FullName, TypeAttributes.Public);  // Опледеляем тип с нашим именем.
 
             ConstructorBuilder ctor = typeBuilder.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, Type.EmptyTypes);  // Определяем конструктор.
             ILGenerator ctorIL = ctor.GetILGenerator();   // Получаем ссылку на генератор MSIL-инструкций для конструктора.
@@ -271,7 +302,7 @@ namespace FluorineFX.Serialization
             object targetObject = Activator.CreateInstance(typeBuilder.CreateType());  // Создаём инстанс нашего динамического типа.
 
             // Раставляем значения всем свойствам объекта.
-            foreach (KeyValuePair<string, object> pair in fields) targetObject.GetType().GetProperty(pair.Key).SetValue(targetObject, pair.Value, null);
+            foreach (KeyValuePair<string, object> pair in fields) targetObject.GetType().GetField(pair.Key).SetValue(targetObject, pair.Value);
 
             return targetObject;
         }
